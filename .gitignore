@@ -1,0 +1,39 @@
+# Datasets produced by collect_training_data.py
+data/
+*.pkl
+
+# Trained checkpoints
+models/
+*.pth
+*.onnx
+
+# Simulation output
+results/
+*.csv
+
+# Notebook training evidence
+review_evidence_cnn/
+review_evidence_gnn/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Analysis tables, figures and arrays
+*.xlsx
+*.png
+*.npy
+
+# Other environments and caches
+env/
+.env
+.cache/
