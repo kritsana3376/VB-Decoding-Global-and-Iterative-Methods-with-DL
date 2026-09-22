@@ -163,51 +163,6 @@ deterministic algorithms.
 There is no resume support: a run that dies partway through must be restarted
 from the beginning.
 
-## Known issues and gotchas
-
-Preserved rather than fixed, because changing them would change published
-numbers. Read before extending the code.
-
-- **The collector and the evaluator do not use the same channel.**
-  `EhMP.create_received_word` takes two flags. The collector runs with
-  `nonzero_data=False, nonzero_error=True`; the evaluator with
-  `nonzero_data=True, nonzero_error=False`. During evaluation a flagged symbol
-  can therefore draw an all-zero error and not actually be corrupted. At
-  r = 32 that is probability 2^-32 per flagged symbol, numerically
-  negligible, but it is a different channel model from the one described for
-  the training data.
-- **The collector trains against `hMP_gc_solve_easy`, not `EhMP`.** That is a
-  single-pass variant, not the full E-hMP loop that gets benchmarked. The
-  labels mean "still wrong after one cheap pass". Switching the collector to
-  `EhMP.EhMP` would change every label and invalidate the existing
-  checkpoints, so it must be a deliberate decision, not a cleanup.
-- **`VSD.VSD_accept_false_verified` corrects its `Y` argument in place.** The
-  evaluation loop depends on it: the VSD-guided decoders run afterwards and
-  deliberately see the corrected word. Do not reorder those calls or add a
-  defensive copy without re-running the benchmarks. `VSD.VSD_model` copies and
-  does not have this behaviour.
-- **`VSD.PreModel` can compute a negative flip count** when the syndrome rank
-  exceeds the located error count, which makes `flip_top_false_Verified` slice
-  from the end. The subsequent rank check appears to reject the result either
-  way, so the outcome should match clamping to zero, but this has not been
-  confirmed by execution.
-- **D-USR for the VSD-guided decoders is not a final verified mask.** The
-  simulator writes their masks as
-  `verified_list_VSD_AFV_make_success_VSD_guid_*`, which is the locating
-  vector that made VSD succeed. `csv_tools.resolve_verified` picks it up by
-  suffix so the column resolves, but it means something different from the
-  other decoders' D-USR.
-- **`EhMP.find_null_ZS34` is O(pairs squared)** in the number of non-zero
-  check-node rows and dominates runtime at larger n. First place to look for
-  speed.
-- **`VSD.gf2_inverse` does not raise on a singular matrix**, unlike
-  `Channel_Coding.Compute_Inverse_Binary_Matrix`. Callers must only pass
-  full-rank submatrices; the zero-syndrome check is what catches a bad guess.
-- **`hMP_verification` casts Y to uint64**, so it breaks silently for r > 64.
-- **`np.identity(k, dtype=int)`** in `front_I_to_back_I` gives int32 on
-  Windows with numpy < 2 and int64 otherwise, so H's dtype depends on platform
-  and numpy version.
-
 ## Third-party code
 
 `Channel_Coding.py` is by Visuttha Manthamkarn (Department of Electrical
@@ -221,36 +176,3 @@ library call.
 
 Confirm the licence and attribution terms with the author before publishing
 this repository.
-
-## Notes on the code consolidation
-
-The decoder library previously existed as three byte-identical copies:
-`EhMP.py`, `EhMP_DLh.py`, and a third pasted inside the evaluation script —
-44 functions duplicated three ways. `EhMP_DLh.py` differed from `EhMP.py` in
-exactly four lines, namely whether two decoders accepted a starting verified
-mask. That mask is now the optional `initial_verified` argument on
-`EhMP.EhMP` and `EhMP.MhMP`, and `EhMP_DLh.py` is gone:
-
-```python
-# before
-EhMP_DLh.EhMP_loop_fast_newsingle_fix_DLh(H, Y, r, DL_Verified)
-EhMP_DLh.EhMP_loop_fast_commonback_DLh(H, Y, r, DL_Verified)
-
-# after
-EhMP.EhMP(H, Y, r, initial_verified=DL_Verified)
-EhMP.MhMP(H, Y, r, initial_verified=DL_Verified)
-```
-
-The collector's private `group_of_34_ZeroRow_new`, `Verified_by_34_smart` and
-`Solve34_single` were separately-written versions of the same three
-algorithms; they were replaced by the library versions after checking the
-outputs agree on 1,000 randomized inputs. The notebooks' inlined `BCH_sys`
-was replaced by an import from `EhMP`.
-
-`VSD.py` used to carry its own copies of `Compute_Gauss_Jordan_Reduction`,
-`Compute_Error_Locating_Vector` and `MatrixBinary_to_MatrixDec`; these were
-confirmed AST-identical to `Channel_Coding`'s and now come from there.
-
-The five analysis and plot scripts each had their own copy of the CSV header
-checks, the decoder ordering table, the summary writer and the figure styling
-block; those now live in `csv_tools.py` and `plot_style.py`.
