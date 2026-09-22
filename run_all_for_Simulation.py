@@ -11,7 +11,7 @@ paired.
     MhMP          M-hMP, loop-fast "common back" variant (algebraic)
     M_hMP_guid_CNN     MhMP + CNN-guided verified-flag flipping
     M_hMP_guid_GNN     MhMP + GNN-guided verified-flag flipping
-    VSD_AFV            Verified Symbol Decoding, accepting false verifications
+    VSD_PV            Verified Symbol Decoding, accepting false verifications
     VSD_guid_CNN/GNN   VSD driven by CNN/GNN fault probabilities
 
 Per-trial results are appended to a CSV in ``OUTPUT_DIR``, one file per
@@ -46,7 +46,7 @@ BITS_PER_SYMBOL = 32  # r
 
 # Simulation parameters.
 NUM_TRIALS = 10_000_000
-SER_VALUES = np.linspace(0.03, 0.04, 1)
+SER_VALUES = np.linspace(0.02, 0.15, 14)
 SIMULATION_SEED = 2028  # independent from the training/validation seeds 2026/2027
 CHUNK_SIZE = 10_000     # rows buffered in RAM before being appended to the CSV
 
@@ -268,18 +268,18 @@ def run_one_trial(H, n, k, r, SER, fault_model_CNN, fault_model_GNN):
 
     # --- VSD. This corrects Y in place, so it must run after the hMP decoders
     # and before the VSD-guided variants, which reuse Y. ---
-    decoded_VSD_AFV = vm.VSD_accept_false_verified(H, Y)
-    recovered_VSD_AFV = decoded_VSD_AFV[0]
-    verified_list_VSD_AFV = decoded_VSD_AFV[2]
-    S_Binary = decoded_VSD_AFV[3]
+    decoded_VSD_PV = vm.VSD_partially_verified(H, Y)
+    recovered_VSD_PV = decoded_VSD_PV[0]
+    verified_list_VSD_PV = decoded_VSD_PV[2]
+    S_Binary = decoded_VSD_PV[3]
 
     _, prob_GNN = fl.predict_fault_positions_any(
-        fault_model_GNN, H, Y, verified_list_VSD_AFV, S_Binary, use_onnx=False
+        fault_model_GNN, H, Y, verified_list_VSD_PV, S_Binary, use_onnx=False
     )
     recovered_VSD_GNN, _, verified_make_success_VSD_GNN = vm.VSD_model(H, Y, prob_GNN, 1)
 
     _, prob_CNN = fl.predict_fault_positions_any(
-        fault_model_CNN, H, Y, verified_list_VSD_AFV, S_Binary, use_onnx=False
+        fault_model_CNN, H, Y, verified_list_VSD_PV, S_Binary, use_onnx=False
     )
     recovered_VSD_CNN, _, verified_make_success_VSD_CNN = vm.VSD_model(H, Y, prob_CNN, 1)
 
@@ -301,7 +301,7 @@ def run_one_trial(H, n, k, r, SER, fault_model_CNN, fault_model_GNN):
     init_MhMP, solved_MhMP, unsolved_MhMP, success_MhMP = analyse(recovered_MhMP)
     init_M_CNN, solved_M_CNN, unsolved_M_CNN, success_M_CNN = analyse(best_recovered_M_CNN)
     init_M_GNN, solved_M_GNN, unsolved_M_GNN, success_M_GNN = analyse(best_recovered_M_GNN)
-    init_VSD, solved_VSD, unsolved_VSD, success_VSD = analyse(recovered_VSD_AFV)
+    init_VSD_PV, solved_VSD_PV, unsolved_VSD_PV, success_VSD_PV = analyse(recovered_VSD_PV)
     init_VSD_CNN, solved_VSD_CNN, unsolved_VSD_CNN, success_VSD_CNN = analyse(recovered_VSD_CNN)
     init_VSD_GNN, solved_VSD_GNN, unsolved_VSD_GNN, success_VSD_GNN = analyse(recovered_VSD_GNN)
 
@@ -319,7 +319,7 @@ def run_one_trial(H, n, k, r, SER, fault_model_CNN, fault_model_GNN):
         "success_MhMP": bool(success_MhMP),
         "success_M_hMP_guid_CNN": bool(success_M_CNN),
         "success_M_hMP_guid_GNN": bool(success_M_GNN),
-        "success_VSD_AFV": bool(success_VSD),
+        "success_VSD_PV": bool(success_VSD_PV),
         "success_VSD_guid_CNN": bool(success_VSD_CNN),
         "success_VSD_guid_GNN": bool(success_VSD_GNN),
 
@@ -353,10 +353,10 @@ def run_one_trial(H, n, k, r, SER, fault_model_CNN, fault_model_GNN):
         "unsolved_errors_M_hMP_guid_GNN": _error_dict_to_str(unsolved_M_GNN),
         "verified_list_M_hMP_guid_GNN": str(best_verified_M_GNN),
 
-        "initial_errors_VSD_AFV": _error_dict_to_str(init_VSD),
-        "solved_errors_VSD_AFV": _error_dict_to_str(solved_VSD),
-        "unsolved_errors_VSD_AFV": _error_dict_to_str(unsolved_VSD),
-        "verified_list_VSD_AFV": str(verified_list_VSD_AFV),
+        "initial_errors_VSD_PV": _error_dict_to_str(init_VSD_PV),
+        "solved_errors_VSD_PV": _error_dict_to_str(solved_VSD_PV),
+        "unsolved_errors_VSD_PV": _error_dict_to_str(unsolved_VSD_PV),
+        "verified_list_VSD_PV": str(verified_list_VSD_PV),
 
         "initial_errors_VSD_guid_CNN": _error_dict_to_str(init_VSD_CNN),
         "solved_errors_VSD_guid_CNN": _error_dict_to_str(solved_VSD_CNN),

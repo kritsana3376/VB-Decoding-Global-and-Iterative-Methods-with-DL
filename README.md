@@ -56,7 +56,7 @@ replot_*.py                ->  figures
 | `E_hMP_guid_CNN` / `E_hMP_guid_GNN` | E-hMP plus CNN/GNN-guided verified-flag flipping |
 | `MhMP` | M-hMP, as above but solving with the full common back-substitution loop |
 | `M_hMP_guid_CNN` / `M_hMP_guid_GNN` | M-hMP plus CNN/GNN-guided verified-flag flipping |
-| `VSD_AFV` | VSD accepting false verifications |
+| `VSD_PV` | VSD accepting false verifications |
 | `VSD_guid_CNN` / `VSD_guid_GNN` | VSD driven by CNN/GNN fault probabilities |
 
 Guided promotions are restricted to the identity block of H = [Q|I], i.e. the
