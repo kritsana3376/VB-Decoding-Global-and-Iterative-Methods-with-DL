@@ -166,13 +166,4 @@ from the beginning.
 ## Third-party code
 
 `Channel_Coding.py` is by Visuttha Manthamkarn (Department of Electrical
-Engineering, Kasetsart University) and is shared with other projects. It has
-been left structurally intact, including functions this repository never
-calls, so it stays comparable with upstream. Only three things were changed:
-line endings and indentation normalised, a stray `F` prefix removed from the
-module docstring, and two `print(...); exit()` pairs replaced with exceptions
-so a singular matrix cannot kill a ten-million-trial run from inside a
-library call.
-
-Confirm the licence and attribution terms with the author before publishing
-this repository.
+Engineering, Kasetsart University) and is shared with other projects.
