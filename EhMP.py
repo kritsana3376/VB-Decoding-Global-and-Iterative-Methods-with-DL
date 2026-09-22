@@ -586,6 +586,31 @@ def MhMP(H, Y_dec, r, initial_verified=None):
 
 
 
+def hMP_gc_solve_easy(H, Y_dec, r):
+    """Single-pass E-hMP: group-common, zero-sum verification, one back substitution.
+
+    This is the cheap baseline whose *residual* errors the neural fault
+    locators are trained to predict. The training data collector must keep
+    using exactly this decoder: switching it to the full `EhMP` loop would
+    change every label and invalidate the existing checkpoints.
+    """
+    GC_result = cc.hMP_Group_Common(H, Y_dec)
+    Y_dec_after_GC = GC_result[0]
+    Verified = GC_result[2]
+
+    Total_Check_Node = cc.Compute_Check_Nodes_Matrix(H, Y_dec_after_GC)
+    bin_total_check_node = cc.MatrixDec_to_MatrixBinary(Total_Check_Node, r)
+
+    group_of_3, group_of_4 = find_null_ZS34(bin_total_check_node)
+    verified_after_34 = Verified_by_34null(H, group_of_3, group_of_4, Verified)
+
+    Y_bin_after_GC = cc.MatrixDec_to_MatrixBinary(Y_dec_after_GC, r)
+    Y_fix, verified_after_34, bin_total_check_node = Backsubstitution(
+        H, Y_bin_after_GC, verified_after_34, bin_total_check_node
+    )
+    return cc.MatrixBinary_to_MatrixDec(Y_fix), verified_after_34
+
+
 # ---------------------------------------------------------------------------
 # Result analysis
 # ---------------------------------------------------------------------------

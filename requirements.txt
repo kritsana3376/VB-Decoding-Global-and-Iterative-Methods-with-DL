@@ -1,3 +1,7 @@
+# Minimum versions known to work. For the paper's archival record, generate a
+# fully pinned lock file from the machine that produced the results:
+#     pip freeze > requirements-lock.txt
+
 # Core numerics
 numpy>=1.24
 pandas>=2.0
@@ -11,8 +15,14 @@ torch>=2.0
 # Progress bars
 tqdm>=4.65
 
-# Training notebooks only
+# Figures (replot_*.py)
 matplotlib>=3.7
+seaborn>=0.12
+
+# Spreadsheet output (plot_tab_FV_analysis.py -o result.xlsx)
+openpyxl>=3.1
+
+# Training notebooks
 scikit-learn>=1.3
 jupyter>=1.0
 

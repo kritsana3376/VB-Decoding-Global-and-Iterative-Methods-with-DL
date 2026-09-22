@@ -1,154 +1,110 @@
+"""Plot D-SER and D-USR against input SER, on a log y axis.
+
+Reads the summary written by plot_tab_output_SER_USR.py. Each decoder gets
+two lines in the same colour: D-SER solid, D-USR dashed.
+
+Usage:
+    python replot_SER_USR_ENG.py path/to/SER_plot_summary.csv
+    python replot_SER_USR_ENG.py SER_plot_summary.csv -d EhMP MhMP VSD_AFV
+"""
+
+import argparse
 import os
-import sys
 
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# =================================================================
-# โซนตั้งค่ากราฟ (CONFIGURATION BLOCK)
-# =================================================================
-TARGET_FONT = 'Tahoma'
+import plot_style as ps
 
-FONT_LABEL = 24          # ขนาดฟอนต์ชื่อแกน X และ Y
-FONT_TICKS = 20          # ขนาดฟอนต์ตัวเลขบนแกน X และ Y
-FONT_LEGEND = 18         # ขนาดฟอนต์ของคำอธิบายเส้นกราฟ (Legend)
-FONT_TITLE = 14          # ขนาดฟอนต์ชื่อหัวกราฟ
+OUTPUT_FILENAME = "SER_USR_Replot_ENG.png"
 
-GRID_THICKNESS = 0.6
-GRID_STYLE = '--'
-GRID_COLOR = '#757575'
-
-AXIS_THICKNESS = 1.2     # ความหนาของเส้นแกน X และ Y
-AXIS_COLOR = '#333333'
-TICK_LENGTH = 6
-TICK_THICKNESS = 1.2
-
-FIG_SIZE = (14, 10)
 LINE_WIDTH_DATA = 3.0
-MARKER_SIZE_DATA = 12
 
-# แกน X: X_AUTO=True ใช้ช่วงของข้อมูลจริง, False บังคับตาม X_START/X_END/X_STEP
-X_AUTO = False
-X_START = 0.01
-X_END = 0.16
-X_STEP = 0.01
+# The paper's figure shows only the three algebraic baselines. Pass -d to
+# plot a different set; any name in plot_style.DECODER_STYLES works.
+DEFAULT_DECODERS = ["EhMP", "MhMP", "VSD_AFV"]
 
-OUTPUT_FILENAME = 'SER_USR_Replot_ENG.png'
-
-# key = ชื่อ decoder ตามที่ปรากฏในคอลัมน์ ser_ratio_<name> / usr_ratio_<name>
-plot_configs = [
-    # --- กลุ่ม EhMP (โทนสีแดง) ---
-    {'name': 'EhMP',           'label': 'E-hMP',     'color': 'red',            'marker': '^'},
-    # {'name': 'E_hMP_guid_CNN', 'label': 'E-hMP CNN', 'color': 'darkred',        'marker': 'v'},
-    # {'name': 'E_hMP_guid_GNN', 'label': 'E-hMP GNN', 'color': 'salmon',         'marker': '<'},
-
-    # --- กลุ่ม M (โทนสีน้ำเงิน) ---
-    {'name': 'MhMP',           'label': 'M-hMP',     'color': 'blue',           'marker': 'd'},
-    # {'name': 'M_hMP_guid_CNN', 'label': 'M-hMP CNN', 'color': 'darkblue',       'marker': 's'},
-    # {'name': 'M_hMP_guid_GNN', 'label': 'M-hMP GNN', 'color': 'dodgerblue',     'marker': 'p'},
-
-    # --- กลุ่ม VSD (โทนสีเขียว) ---
-    {'name': 'VSD_AFV',        'label': 'VSD-pv',    'color': 'limegreen',      'marker': '*'},
-    # {'name': 'VSD_guid_CNN',   'label': 'VSD CNN',   'color': 'darkgreen',      'marker': 'X'},
-    # {'name': 'VSD_guid_GNN',   'label': 'VSD GNN',   'color': 'mediumseagreen', 'marker': 'P'},
-]
-# =================================================================
+MARKERS = {
+    "EhMP": "^", "E_hMP_guid_CNN": "v", "E_hMP_guid_GNN": "<",
+    "MhMP": "d", "M_hMP_guid_CNN": "s", "M_hMP_guid_GNN": "p",
+    "VSD_AFV": "*", "VSD_guid_CNN": "X", "VSD_guid_GNN": "P",
+}
 
 
-def replot_summary_data(csv_path):
+def replot_summary_data(csv_path, decoders=None, output_name=OUTPUT_FILENAME):
     if not os.path.exists(csv_path):
-        print(f"Error: ไม่พบไฟล์ CSV ที่ตำแหน่ง: {csv_path}")
+        print(f"Error: CSV not found at {csv_path}")
         return
 
-    absolute_csv_path = os.path.abspath(csv_path)
-    csv_folder = os.path.dirname(absolute_csv_path)
+    csv_path = os.path.abspath(csv_path)
+    csv_folder = os.path.dirname(csv_path)
+    decoders = decoders or DEFAULT_DECODERS
 
-    df = pd.read_csv(absolute_csv_path)
-    if 'prop_error' not in df.columns:
-        print(f"Error: ไฟล์นี้ไม่มีคอลัมน์ 'prop_error' -> {absolute_csv_path}")
+    df = pd.read_csv(csv_path)
+    if "prop_error" not in df.columns:
+        print(f"Error: no 'prop_error' column in {csv_path}")
         return
 
-    df = df.sort_values('prop_error').reset_index(drop=True)
-    x = pd.to_numeric(df['prop_error'], errors='coerce').to_numpy(dtype=float)
+    df = df.sort_values("prop_error").reset_index(drop=True)
+    x = pd.to_numeric(df["prop_error"], errors="coerce").to_numpy(dtype=float)
 
-    sns.set_theme(style="whitegrid", rc={"font.family": TARGET_FONT})
-    fig, ax = plt.subplots(figsize=FIG_SIZE)
+    fig, ax = ps.new_figure()
+    drawn, missing, n_dropped = [], [], 0
 
-    drawn, missing, n_zero = [], [], 0
+    for name in decoders:
+        style = ps.DECODER_STYLES.get(name)
+        if style is None:
+            print(f"[warn] unknown decoder {name!r}, skipping")
+            continue
 
-    for cfg in plot_configs:
-        name = cfg['name']
-        for kind, style, alpha, tag in (('ser', '-', 1.0, 'D-SER'),
-                                        ('usr', '--', 0.7, 'D-USR')):
-            col = f'{kind}_ratio_{name}'
-            if col not in df.columns:
-                missing.append(col)
+        for kind, linestyle, alpha, tag in (("ser", "-", 1.0, "D-SER"),
+                                            ("usr", "--", 0.7, "D-USR")):
+            column = f"{kind}_ratio_{name}"
+            if column not in df.columns:
+                missing.append(column)
                 continue
 
-            y = pd.to_numeric(df[col], errors='coerce').to_numpy(dtype=float)
-            # log scale วาดค่า <= 0 ไม่ได้ -> ทำเป็น NaN ให้เส้นขาดแทนที่จะหายเงียบ
-            n_zero += int(np.sum(~np.isnan(y) & (y <= 0)))
-            y = np.where(y > 0, y, np.nan)
+            y, dropped = ps.positive_only(
+                pd.to_numeric(df[column], errors="coerce").to_numpy(dtype=float))
+            n_dropped += dropped
 
-            ax.plot(x, y, marker=cfg['marker'], linestyle=style, color=cfg['color'],
-                    alpha=alpha, linewidth=LINE_WIDTH_DATA, markersize=MARKER_SIZE_DATA,
-                    label=f"{cfg['label']} ({tag})")
-            drawn.append(col)
+            ax.plot(x, y, marker=MARKERS.get(name, "o"), linestyle=linestyle,
+                    color=style["color"], alpha=alpha,
+                    linewidth=LINE_WIDTH_DATA, markersize=ps.MARKER_SIZE_DATA,
+                    label=f"{style['label']} ({tag})")
+            drawn.append(column)
 
-    # ---------- แจ้งเตือนแทนที่จะเซฟรูปเปล่า ----------
+    # Report rather than silently saving an empty figure.
     if missing:
-        print("ไม่พบคอลัมน์เหล่านี้ในไฟล์ CSV:")
-        for c in missing:
-            print(f"   - {c}")
+        print("These columns were not found in the CSV:")
+        for column in missing:
+            print(f"   - {column}")
     if not drawn:
-        print("\nไม่มีเส้นกราฟให้วาดเลย จึงไม่เซฟรูป")
-        print("คอลัมน์ที่มีอยู่จริงในไฟล์:")
-        for c in df.columns:
-            print(f"   {c}")
-        plt.close(fig)
+        print("\nNothing to plot, so no figure was saved.")
+        print("Columns actually present:")
+        for column in df.columns:
+            print(f"   {column}")
         return
 
-    print(f"วาดกราฟ {len(drawn)} เส้น: {', '.join(drawn)}")
+    print(f"Plotted {len(drawn)} line(s): {', '.join(drawn)}")
 
-    ax.set_yscale('log')
-
-    ticks = np.unique(x[~np.isnan(x)]) if X_AUTO else np.arange(X_START, X_END + 1e-9, X_STEP)
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([f"{v:.2f}" for v in ticks], fontsize=FONT_TICKS)
-    ax.tick_params(axis='y', labelsize=FONT_TICKS)
-
-    ax.set_xlabel('Input Symbol Error Rate (Input SER)', fontsize=FONT_LABEL, labelpad=12)
-    ax.set_ylabel('Data Symbol Error Rate & Data Unverified Symbol Rate',
-                  fontsize=FONT_LABEL, labelpad=12)
-    ax.set_title('', fontsize=FONT_TITLE, pad=15)
-
-    ax.legend(fontsize=FONT_LEGEND, loc='best', frameon=True,
-              facecolor='white', edgecolor='none')
-    ax.grid(True, which='both', linestyle=GRID_STYLE,
-            linewidth=GRID_THICKNESS, color=GRID_COLOR, alpha=0.7)
-
-    for side in ('left', 'bottom'):
-        ax.spines[side].set_visible(True)
-        ax.spines[side].set_color(AXIS_COLOR)
-        ax.spines[side].set_linewidth(AXIS_THICKNESS)
-    ax.tick_params(axis='both', which='major', direction='out',
-                   length=TICK_LENGTH, width=TICK_THICKNESS, colors=AXIS_COLOR,
-                   left=True, bottom=True)
-    ax.tick_params(axis='y', which='minor', left=False)
-
+    ps.finish_axes(ax, x,
+                   "Input Symbol Error Rate (Input SER)",
+                   "Data Symbol Error Rate & Data Unverified Symbol Rate")
     fig.tight_layout()
-
-    save_path = os.path.join(csv_folder, OUTPUT_FILENAME)
-    fig.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"\nบันทึกรูปภาพกราฟเรียบร้อยแล้วที่:\n   {save_path}")
-    if n_zero:
-        print(f"หมายเหตุ: มีค่า <= 0 จำนวน {n_zero} จุด ที่วาดบนสเกล log ไม่ได้ จึงเว้นช่วงไว้")
-
-    plt.show()
+    ps.save_figure(fig, os.path.join(csv_folder, output_name), n_dropped)
 
 
-if __name__ == '__main__':
-    csv_target = r"C:\Users\user\Desktop\ProjectY4\pre_master\new_journal_run\Add_3121\SER_plot_summary.csv"
-    replot_summary_data(sys.argv[1] if len(sys.argv) > 1 else csv_target)
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("csv_path",
+                        help="SER_plot_summary.csv from plot_tab_output_SER_USR.py")
+    parser.add_argument("-d", "--decoders", nargs="+", default=None,
+                        help=f"decoders to plot (default: {' '.join(DEFAULT_DECODERS)})")
+    parser.add_argument("-o", "--output", default=OUTPUT_FILENAME,
+                        help=f"figure file name (default: {OUTPUT_FILENAME})")
+    args = parser.parse_args()
+    replot_summary_data(args.csv_path, args.decoders, args.output)
+
+
+if __name__ == "__main__":
+    main()

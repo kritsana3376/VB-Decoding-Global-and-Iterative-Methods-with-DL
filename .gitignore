@@ -37,3 +37,8 @@ Thumbs.db
 env/
 .env
 .cache/
+
+# Analysis tables produced by the plot_tab_* scripts
+analysis_summary.csv
+SER_plot_summary.csv
+decoder_stats*.csv
